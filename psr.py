@@ -1209,4 +1209,4 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
             )
             
             # 添加说明
-            st.info("文档已设置为 Times New Roman 11pt 字体，并添加了页
+            st.info("文档已设置为 Times New Roman 11pt 字体，并添加了页眉")
