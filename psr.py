@@ -720,7 +720,7 @@ def build_english_refine_prompt(text_with_instructions):
 st.markdown("<h1>个人陈述修改</h1>", unsafe_allow_html=True)
 
 # 区域1: 原始文书输入区
-with st.expander("**1. 原始文书 (Old PS)**", expanded=True):
+with st.expander("**1. 原始文书**", expanded=True):
     # 上传文件区域 - 放在上面
     st.file_uploader("上传文件", type=['docx', 'pdf', 'txt'], key="uploader_ps", 
                      on_change=lambda: st.session_state.update({'ps_content': extract_text_from_file(st.session_state.uploader_ps)}))
