@@ -1100,7 +1100,7 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
                 st.session_state['edited_translations'][trans_key] = edited_trans
                 
                 # 翻译操作按钮
-                col1, col2, col3 = st.columns([1, 1, 1])
+                col1 = st.columns(1)[0]
                 
                 # 执行翻译批注修改按钮 - 修改为使用英文精修提示词
                 with col1:
@@ -1136,41 +1136,6 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
                                     st.error(f"修改失败: {e}")
                         else:
                             st.warning("未检测到批注标记。请在文本中添加【】或[]形式的批注。")
-                
-                # 应用翻译按钮
-                with col2:
-                    if st.button("应用此翻译", key=f"apply_trans_{i}"):
-                        # 将翻译结果应用到原文本
-                        translated_text = st.session_state['edited_translations'][trans_key]
-                        st.session_state['sections_data'][i]['draft'] = translated_text
-                        
-                        # 将此段落标记为已确认
-                        st.session_state['confirmed_paragraphs'].add(i)
-                        
-                        # 将翻译后的文本添加到最终预览
-                        if st.session_state['final_preview_text']:
-                            st.session_state['final_preview_text'] += "\n\n" + translated_text
-                        else:
-                            st.session_state['final_preview_text'] = translated_text
-                        
-                        # 清除相关状态
-                        del st.session_state['translation_results'][trans_key]
-                        del st.session_state['edited_translations'][trans_key]
-                        if f"preview_trans_{i}" in st.session_state['preview_results']:
-                            del st.session_state['preview_results'][f"preview_trans_{i}"]
-                        st.rerun()
-                
-                # 直接应用修改按钮
-                with col3:
-                    preview_key = f"preview_trans_{i}"
-                    if preview_key in st.session_state['preview_results'] and st.button("直接应用修改", key=f"apply_preview_{i}"):
-                        # 将预览中的修改直接应用到原文本
-                        st.session_state['sections_data'][i]['draft'] = st.session_state['edited_translations'][trans_key]
-                        # 清除相关状态
-                        del st.session_state['translation_results'][trans_key]
-                        del st.session_state['edited_translations'][trans_key]
-                        del st.session_state['preview_results'][preview_key]
-                        st.rerun()
                 
                 # 显示预览结果（如果有）
                 preview_key = f"preview_trans_{i}"
@@ -1222,12 +1187,6 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
             height=500,
             key="final_preview_text"  # 直接使用会话状态变量名作为键"
         )
-            
-        # 在预览区域下方添加清空按钮
-        if st.session_state['final_preview_text'] and st.button("清空预览内容"):
-            st.session_state['final_preview_text'] = ""
-            st.session_state['confirmed_paragraphs'] = set()
-            st.rerun()
     
     with col_exp2:
         if HAS_DOCX:
@@ -1250,4 +1209,4 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
             )
             
             # 添加说明
-            st.info("文档已设置为 Times New Roman 11pt 字体，并添加了页眉")
+            st.info("文档已设置为 Times New Roman 11pt 字体，并添加了页
