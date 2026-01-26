@@ -980,12 +980,19 @@ drawn to
 look forward to
 my goal is to
 B. 滥用的结构和比喻：
-副词+动词/形容词结构：避免过度使用“显著提升”、“深入理解”这类组合。
+副词+动词/形容词结构：避免过度使用"显著提升"、"深入理解"这类组合。
 公式化因果：禁用 By doing X, I was able to Y 和 ...thereby doing... 的句式。
 陈腐的比喻：
-“旅程”隐喻 (e.g., academic/career journey)
-“工具箱”隐喻 (e.g., skill set/toolkit)
-“交汇点”逻辑 (e.g., the intersection of X and Y)
+"旅程"隐喻 (e.g., academic/career journey)
+"工具箱"隐喻 (e.g., skill set/toolkit)
+"交汇点"逻辑 (e.g., the intersection of X and Y)
+
+C. 句子结构多样性指导（平衡规则）：
+AI模型经常过度使用"逗号+动词-ing"结构（例如，", revealing trends"）。不要完全禁止这种结构，因为在学术英语中是有效的，但要**谨慎使用**以避免重复的"AI腔调"。相反，优先使用多样性，例如使用关系从句（例如，", which revealed..."）、并列结构（例如，"and revealed..."），或者在适当的地方开始新句子以获得更好的流畅性。
+
+**重要规则：**
+7. **移除Markdown格式**：从输出中移除所有Markdown格式符号，如星号(*)、双星号(**)、下划线(_)等。提供没有任何Markdown格式的干净文本。
+8. **引号标点规则**：对于一般文本（非正式引用），始终将逗号、句号和其他标点符号放在引号外部，而不是内部。例如，使用"example"，而不是"example,"。对于正式引用，保持原始引用样式的标点规则。
 
 **你的任务：**
 1. 仔细阅读以下文本。
@@ -1658,10 +1665,21 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
                         st.session_state['final_preview_text_cleaned'] = cleaned_text
                         logger.info(f"final_preview_text_cleaned 已设置，长度: {len(cleaned_text)}")
 
+                        # 同时更新文本区域的session state值，确保显示更新
+                        text_area_key = "final_preview_text_display"
+                        st.session_state[text_area_key] = cleaned_text
+                        logger.info(f"文本区域key '{text_area_key}' 已更新为清理版本")
+
+                        # 检查清理后的文本是否包含Markdown符号
+                        markdown_symbols = ['**', '*', '__', '_', '`', '#', '##', '###', '####']
+                        found_symbols = [sym for sym in markdown_symbols if sym in cleaned_text]
+                        if found_symbols:
+                            logger.warning(f"清理文本中仍然包含Markdown符号: {found_symbols}")
+
                         # 调试：检查 final_preview_text 是否被意外修改
                         logger.info(f"处理后 final_preview_text长度: {len(st.session_state['final_preview_text'])}")
 
-                        st.success("AI词汇已去除，清理版本已生成！")
+                        st.success("AI词汇已去除，清理版本已生成并显示在文本区域中！")
                         st.rerun()
                 except Exception as e:
                     logger.error(f"去除AI词汇失败: {e}")
