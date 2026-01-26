@@ -1126,7 +1126,10 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
                             st.session_state['final_preview_text'] += "\n\n" + current_draft
                         else:
                             st.session_state['final_preview_text'] = current_draft
-                        
+
+                        # 清空清理版本，因为内容已更新
+                        st.session_state['final_preview_text_cleaned'] = ''
+
                         # 标记段落为已确认
                         st.session_state['confirmed_paragraphs'].add(i)
                         st.success("内容已添加到最终预览")
@@ -1257,13 +1260,18 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
         # 显示最终预览文本
         # 优先显示清理后的版本，如果存在的话
         display_text = st.session_state.get('final_preview_text_cleaned') or st.session_state['final_preview_text']
+
+        # 如果文本为空，显示提示信息
+        if not display_text.strip() and not st.session_state['final_preview_text'].strip():
+            st.info("请先在上方段落中点击'✅ 确认内容'按钮，将段落添加到最终预览")
+
         st.text_area(
             "最终文本预览",
             value=display_text,
             height=500,
             key="final_preview_text_display",
             on_change=lambda: st.session_state.update({
-                'final_preview_text': st.session_state['final_preview_text_display'],
+                'final_preview_text': st.session_state.get('final_preview_text_display', ''),
                 'final_preview_text_cleaned': ''  # 用户编辑后清除清理版本
             })
         )
