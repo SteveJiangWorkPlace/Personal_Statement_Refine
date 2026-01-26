@@ -987,12 +987,11 @@ B. 滥用的结构和比喻：
 "工具箱"隐喻 (e.g., skill set/toolkit)
 "交汇点"逻辑 (e.g., the intersection of X and Y)
 
-C. 句子结构多样性指导（平衡规则）：
-AI模型经常过度使用"逗号+动词-ing"结构（例如，", revealing trends"）。不要完全禁止这种结构，因为在学术英语中是有效的，但要**谨慎使用**以避免重复的"AI腔调"。相反，优先使用多样性，例如使用关系从句（例如，", which revealed..."）、并列结构（例如，"and revealed..."），或者在适当的地方开始新句子以获得更好的流畅性。
+C. **Sentence Structure Variety (Balanced Rule)**: AI models often overuse the "comma + verb-ing" structure (e.g., ", revealing trends"). Do not strictly ban it, as it is valid in academic English, but **use it sparingly** to avoid a repetitive "AI tone." Instead, prioritize variety by using relative clauses (e.g., ", which revealed..."), coordination (e.g., "and revealed..."), or starting new sentences where appropriate for better flow.
 
 **重要规则：**
-7. **移除Markdown格式**：从输出中移除所有Markdown格式符号，如星号(*)、双星号(**)、下划线(_)等。提供没有任何Markdown格式的干净文本。
-8. **引号标点规则**：对于一般文本（非正式引用），始终将逗号、句号和其他标点符号放在引号外部，而不是内部。例如，使用"example"，而不是"example,"。对于正式引用，保持原始引用样式的标点规则。
+7. **IMPORTANT - Remove Markdown**: Remove all Markdown formatting symbols like asterisks (*), double asterisks (**), underscores (_), etc. from the output. Provide clean text without any Markdown formatting.
+8. **Punctuation with Quotation Marks**: For general text (not formal citations), always place commas, periods, and other punctuation marks OUTSIDE of quotation marks, not inside. For example, use "example", not "example,". For formal citations, maintain the original citation style's punctuation rules.
 
 **你的任务：**
 1. 仔细阅读以下文本。
@@ -1590,20 +1589,6 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
     # 确保display_text是字符串
     text_area_value = str(display_text) if display_text is not None else ""
 
-    # 确保文本区域的key有正确的初始值
-    text_area_key = "final_preview_text_display"
-    current_text_area_value = st.session_state.get(text_area_key, '')
-    logger.info(f"文本区域key '{text_area_key}' 当前值长度: {len(current_text_area_value)}")
-    logger.info(f"text_area_value长度: {len(text_area_value)}")
-
-    if not current_text_area_value and text_area_value:
-        logger.info(f"文本区域key '{text_area_key}' 为空，使用text_area_value初始化")
-        st.session_state[text_area_key] = text_area_value
-    elif current_text_area_value and text_area_value and current_text_area_value != text_area_value:
-        logger.info(f"文本区域key '{text_area_key}' 已有值({len(current_text_area_value)}字符)，但text_area_value不同({len(text_area_value)}字符)")
-        # 可以选择同步，但可能覆盖用户编辑
-        # st.session_state[text_area_key] = text_area_value
-
     st.text_area(
         "最终文本预览",
         value=text_area_value,
@@ -1641,8 +1626,8 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
 
             with st.spinner("正在去除AI写作高频词汇..."):
                 try:
-                    # 获取当前文本
-                    current_text = st.session_state['final_preview_text']
+                    # 获取当前文本 - 优先使用文本区域的当前内容
+                    current_text = st.session_state.get('final_preview_text_display', st.session_state['final_preview_text'])
                     logger.info(f"准备处理的文本长度: {len(current_text) if current_text else 0}")
 
                     if not current_text.strip():
@@ -1665,10 +1650,13 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
                         st.session_state['final_preview_text_cleaned'] = cleaned_text
                         logger.info(f"final_preview_text_cleaned 已设置，长度: {len(cleaned_text)}")
 
-                        # 同时更新文本区域的session state值，确保显示更新
-                        text_area_key = "final_preview_text_display"
-                        st.session_state[text_area_key] = cleaned_text
-                        logger.info(f"文本区域key '{text_area_key}' 已更新为清理版本")
+                        # 清除文本区域的session state，确保下次渲染使用新值
+                        if 'final_preview_text_display' in st.session_state:
+                            del st.session_state['final_preview_text_display']
+                            logger.info("已清除final_preview_text_display，确保下次渲染使用清理版本")
+
+                        # 注意：文本区域的值会在下一次渲染时通过text_area_value自动更新
+                        logger.info(f"清理版本已保存到final_preview_text_cleaned")
 
                         # 检查清理后的文本是否包含Markdown符号
                         markdown_symbols = ['**', '*', '__', '_', '`', '#', '##', '###', '####']
