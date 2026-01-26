@@ -474,8 +474,20 @@ with st.sidebar:
     # 显示最终预览状态
     if st.session_state['final_preview_text']:
         st.info(f"最终预览文本长度: {len(st.session_state['final_preview_text'])} 字符")
+        # 显示前100字符预览
+        preview_text = st.session_state['final_preview_text']
+        if len(preview_text) > 100:
+            st.text_area("final_preview_text预览", value=preview_text[:500], height=150, key="sidebar_preview", disabled=True)
+        else:
+            st.text_area("final_preview_text预览", value=preview_text, height=150, key="sidebar_preview", disabled=True)
+
         if st.session_state.get('final_preview_text_cleaned'):
             st.info(f"清理版本长度: {len(st.session_state['final_preview_text_cleaned'])} 字符")
+            cleaned_preview = st.session_state['final_preview_text_cleaned']
+            if len(cleaned_preview) > 100:
+                st.text_area("final_preview_text_cleaned预览", value=cleaned_preview[:500], height=150, key="sidebar_cleaned_preview", disabled=True)
+            else:
+                st.text_area("final_preview_text_cleaned预览", value=cleaned_preview, height=150, key="sidebar_cleaned_preview", disabled=True)
     else:
         st.warning("最终预览文本为空")
 
@@ -499,30 +511,59 @@ with st.sidebar:
 
     # 诊断按钮
     st.divider()
-    if st.button("📋 输出详细诊断日志", key="diagnostic_btn"):
-        logger.info(f"=== 详细诊断日志 ===")
-        logger.info(f"final_preview_text长度: {len(st.session_state['final_preview_text'])}")
-        logger.info(f"final_preview_text_cleaned长度: {len(st.session_state.get('final_preview_text_cleaned', ''))}")
-        logger.info(f"final_preview_text_display session state存在: {'final_preview_text_display' in st.session_state}")
-        logger.info(f"sections_data长度: {len(st.session_state['sections_data'])}")
-        logger.info(f"confirmed_paragraphs: {st.session_state['confirmed_paragraphs']}")
-        logger.info(f"confirmed_contents keys: {list(st.session_state['confirmed_contents'].keys())}")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📋 输出详细诊断日志", key="diagnostic_btn"):
+            logger.info(f"=== 详细诊断日志 ===")
+            logger.info(f"final_preview_text长度: {len(st.session_state['final_preview_text'])}")
+            logger.info(f"final_preview_text_cleaned长度: {len(st.session_state.get('final_preview_text_cleaned', ''))}")
+            logger.info(f"final_preview_text_display session state存在: {'final_preview_text_display' in st.session_state}")
+            logger.info(f"sections_data长度: {len(st.session_state['sections_data'])}")
+            logger.info(f"confirmed_paragraphs: {st.session_state['confirmed_paragraphs']}")
+            logger.info(f"confirmed_contents keys: {list(st.session_state['confirmed_contents'].keys())}")
 
-        # 检查每个confirmed_contents的内容
-        for idx, content in st.session_state['confirmed_contents'].items():
-            logger.info(f"confirmed_contents[{idx}]长度: {len(content) if content else 0}")
-            if content and len(content) < 500:
-                logger.info(f"confirmed_contents[{idx}]内容前200字符: {content[:200]}")
+            # 检查每个confirmed_contents的内容
+            for idx, content in st.session_state['confirmed_contents'].items():
+                logger.info(f"confirmed_contents[{idx}]长度: {len(content) if content else 0}")
+                if content and len(content) < 500:
+                    logger.info(f"confirmed_contents[{idx}]内容前200字符: {content[:200]}")
 
-        # 检查final_preview_text_display
-        if 'final_preview_text_display' in st.session_state:
-            display_val = st.session_state['final_preview_text_display']
-            logger.info(f"final_preview_text_display长度: {len(display_val) if display_val else 0}")
-            if display_val and len(display_val) < 500:
-                logger.info(f"final_preview_text_display前200字符: {display_val[:200]}")
+            # 检查final_preview_text_display
+            if 'final_preview_text_display' in st.session_state:
+                display_val = st.session_state['final_preview_text_display']
+                logger.info(f"final_preview_text_display长度: {len(display_val) if display_val else 0}")
+                if display_val and len(display_val) < 500:
+                    logger.info(f"final_preview_text_display前200字符: {display_val[:200]}")
 
-        logger.info(f"=== 诊断日志结束 ===")
-        st.success("详细诊断日志已输出到日志文件")
+            # 检查display_text的计算
+            cleaned_text = st.session_state.get('final_preview_text_cleaned', '')
+            if cleaned_text and cleaned_text.strip():
+                display_text = cleaned_text
+                logger.info(f"display_text使用final_preview_text_cleaned，长度: {len(display_text)}")
+            else:
+                display_text = st.session_state['final_preview_text']
+                logger.info(f"display_text使用final_preview_text，长度: {len(display_text)}")
+            logger.info(f"display_text前200字符: {display_text[:200] if display_text else '空'}")
+
+            logger.info(f"=== 诊断日志结束 ===")
+            st.success("详细诊断日志已输出到日志文件")
+
+    with col2:
+        if st.button("🔄 强制重建预览", key="rebuild_preview_btn"):
+            logger.info(f"=== 强制重建预览 ===")
+            rebuilt_text = rebuild_final_preview()
+            logger.info(f"重建结果长度: {len(rebuilt_text)}")
+            if rebuilt_text and rebuilt_text.strip():
+                st.session_state['final_preview_text'] = rebuilt_text
+                logger.info(f"final_preview_text已更新，长度: {len(rebuilt_text)}")
+                st.success(f"预览已重建，长度: {len(rebuilt_text)} 字符")
+                # 清除清理版本
+                st.session_state['final_preview_text_cleaned'] = ''
+                logger.info("已清除final_preview_text_cleaned")
+                st.rerun()
+            else:
+                logger.warning(f"重建结果为空")
+                st.error("重建失败，结果为空")
 
 # 设置默认使用的模型
 model_name = "gemini-2.5-pro"
@@ -1671,6 +1712,36 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
     logger.info(f"final_preview_text_cleaned存在: {'final_preview_text_cleaned' in st.session_state}")
     logger.info(f"final_preview_text_cleaned长度: {len(st.session_state.get('final_preview_text_cleaned', ''))}")
     logger.info(f"final_preview_text_display session state存在: {'final_preview_text_display' in st.session_state}")
+
+    # 在主界面显示调试信息
+    if DEBUG_MODE:
+        st.markdown("---")
+        st.markdown("**文本区域调试信息:**")
+        col_debug1, col_debug2 = st.columns(2)
+        with col_debug1:
+            st.write(f"display_text长度: {len(display_text) if display_text else 0}")
+            st.write(f"text_area_value长度: {len(text_area_value)}")
+            st.write(f"final_preview_text长度: {len(st.session_state['final_preview_text'])}")
+        with col_debug2:
+            st.write(f"final_preview_text_cleaned长度: {len(st.session_state.get('final_preview_text_cleaned', ''))}")
+            st.write(f"final_preview_text_display session state存在: {'final_preview_text_display' in st.session_state}")
+
+        # 显示text_area_value的前100字符
+        if text_area_value and len(text_area_value) > 0:
+            st.text_area("text_area_value预览", value=text_area_value[:300], height=150, key="debug_preview", disabled=True)
+            # 显示repr版本，查看隐藏字符
+            st.write(f"text_area_value前200字符repr: {repr(text_area_value[:200])}")
+            # 检查是否只包含空白字符
+            if text_area_value.strip() == "":
+                st.error("text_area_value只包含空白字符！")
+                # 显示字符统计
+                import string
+                printable = set(string.printable)
+                non_printable = sum(1 for c in text_area_value[:500] if c not in printable)
+                st.write(f"前500字符中不可打印字符数: {non_printable}")
+        else:
+            st.warning("text_area_value为空")
+        st.markdown("---")
 
     st.text_area(
         "最终文本预览",
