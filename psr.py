@@ -371,6 +371,63 @@ apply_custom_css()
 # 调试模式标志
 DEBUG_MODE = True
 
+# 日志系统
+import logging
+from datetime import datetime
+
+def setup_logging():
+    """设置日志系统"""
+    logger = logging.getLogger('psr_debug')
+    logger.setLevel(logging.DEBUG)
+
+    # 避免重复添加handler
+    if not logger.handlers:
+        # 文件handler
+        fh = logging.FileHandler('psr_debug.log', encoding='utf-8')
+        fh.setLevel(logging.DEBUG)
+
+        # 控制台handler（仅当DEBUG_MODE开启时）
+        if DEBUG_MODE:
+            ch = logging.StreamHandler()
+            ch.setLevel(logging.DEBUG)
+
+        # 格式化
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fh.setFormatter(formatter)
+        if DEBUG_MODE:
+            ch.setFormatter(formatter)
+
+        logger.addHandler(fh)
+        if DEBUG_MODE:
+            logger.addHandler(ch)
+
+    return logger
+
+logger = setup_logging()
+
+def log_session_state_summary():
+    """记录session state的摘要信息"""
+    logger.info("=== Session State 摘要 ===")
+    logger.info(f"sections_data长度: {len(st.session_state.get('sections_data', []))}")
+    logger.info(f"confirmed_paragraphs: {st.session_state.get('confirmed_paragraphs', set())}")
+    logger.info(f"confirmed_contents keys: {list(st.session_state.get('confirmed_contents', {}).keys())}")
+
+    # 检查confirmed_contents中的实际内容
+    confirmed_contents = st.session_state.get('confirmed_contents', {})
+    for idx, content in confirmed_contents.items():
+        logger.info(f"confirmed_contents[{idx}] 长度: {len(content) if content else 0}")
+        if content and len(content) < 100:
+            logger.debug(f"confirmed_contents[{idx}] 内容: {content}")
+
+    logger.info(f"final_preview_text长度: {len(st.session_state.get('final_preview_text', ''))}")
+    logger.info(f"final_preview_text_cleaned长度: {len(st.session_state.get('final_preview_text_cleaned', ''))}")
+    logger.info(f"generation_complete: {st.session_state.get('generation_complete', False)}")
+    logger.info(f"show_sections: {st.session_state.get('show_sections', False)}")
+    logger.info("=== Session State 摘要结束 ===")
+
+# 在脚本开始时记录session state
+log_session_state_summary()
+
 # 初始化所有会话状态变量，用于在页面重新加载时保持数据
 if 'ps_content' not in st.session_state: st.session_state['ps_content'] = ""  # 原始PS内容
 if 'curr_content' not in st.session_state: st.session_state['curr_content'] = ""  # 课程内容
@@ -637,7 +694,13 @@ def extract_paragraph_topic(logic_text):
 # 重建最终预览文本
 def rebuild_final_preview():
     """按段落顺序重建最终预览文本"""
+    logger.info(f"=== 开始重建最终预览 ===")
+    logger.info(f"sections_data长度: {len(st.session_state.get('sections_data', []))}")
+    logger.info(f"confirmed_paragraphs: {st.session_state.get('confirmed_paragraphs', set())}")
+    logger.info(f"confirmed_contents keys: {list(st.session_state.get('confirmed_contents', {}).keys())}")
+
     if not st.session_state['sections_data']:
+        logger.warning("没有段落数据")
         if DEBUG_MODE:
             st.warning("没有段落数据")  # 调试信息
         return ""
@@ -648,7 +711,10 @@ def rebuild_final_preview():
     else:
         confirmed_indices = sorted(st.session_state['confirmed_paragraphs'])
 
+    logger.info(f"confirmed_indices: {confirmed_indices}")
+
     if not confirmed_indices:
+        logger.warning(f"已确认段落为空: {st.session_state['confirmed_paragraphs']}")
         if DEBUG_MODE:
             st.warning(f"已确认段落为空: {st.session_state['confirmed_paragraphs']}")  # 调试信息
         return ""
@@ -657,25 +723,59 @@ def rebuild_final_preview():
     for idx in confirmed_indices:
         if idx < len(st.session_state['sections_data']):
             # 调试输出
+            has_content = idx in st.session_state['confirmed_contents']
+            logger.info(f"处理段落 {idx}, confirmed_contents中有: {has_content}")
+
             if DEBUG_MODE:
-                st.info(f"处理段落 {idx}, confirmed_contents中有: {idx in st.session_state['confirmed_contents']}")
+                st.info(f"处理段落 {idx}, confirmed_contents中有: {has_content}")
 
             if idx in st.session_state['confirmed_contents']:
                 current_text = st.session_state['confirmed_contents'][idx]
+                logger.info(f"段落 {idx} 从confirmed_contents获取内容，长度: {len(current_text) if current_text else 0}")
+                logger.debug(f"段落 {idx} 内容前100字符: {current_text[:100] if current_text else '空'}")
+
+                # 如果confirmed_contents中的内容为空，尝试从其他地方获取
+                if not current_text or not current_text.strip():
+                    logger.warning(f"段落 {idx} confirmed_contents中的内容为空，尝试从其他地方获取")
+                    textarea_key = f"draft_p_{idx}"
+                    if textarea_key in st.session_state:
+                        fallback_text = st.session_state[textarea_key]
+                        if fallback_text and fallback_text.strip():
+                            current_text = fallback_text
+                            logger.info(f"段落 {idx} 从textarea获取替代内容，长度: {len(current_text)}")
+                    else:
+                        # 最后回退到段落原始内容
+                        draft_key = f"para_{idx}"
+                        fallback_text = st.session_state['refine_results'].get(draft_key, st.session_state['sections_data'][idx]['draft'])
+                        if fallback_text and fallback_text.strip():
+                            current_text = fallback_text
+                            logger.info(f"段落 {idx} 回退到原始内容，长度: {len(current_text)}")
             else:
                 # 如果没有保存的内容，尝试从文本框获取最新内容
                 textarea_key = f"draft_p_{idx}"
                 if textarea_key in st.session_state:
                     current_text = st.session_state[textarea_key]
+                    logger.info(f"段落 {idx} 从textarea获取内容，长度: {len(current_text) if current_text else 0}")
                 else:
                     # 最后回退到段落原始内容
                     draft_key = f"para_{idx}"
                     current_text = st.session_state['refine_results'].get(draft_key, st.session_state['sections_data'][idx]['draft'])
-            paragraphs.append(current_text)
+                    logger.info(f"段落 {idx} 回退到原始内容，长度: {len(current_text) if current_text else 0}")
+
+            if current_text and current_text.strip():
+                paragraphs.append(current_text)
+                logger.info(f"段落 {idx} 已添加到paragraphs列表，长度: {len(current_text)}")
+            else:
+                logger.warning(f"段落 {idx} 内容为空或仅空白字符")
 
     result = "\n\n".join(paragraphs)
+    logger.info(f"最终结果长度: {len(result)}")
+    logger.debug(f"最终结果前200字符: {result[:200] if result else '空'}")
+
     if DEBUG_MODE:
         st.info(f"重建结果长度: {len(result)}")  # 调试信息
+
+    logger.info(f"=== 重建完成 ===")
     return result
 
 # ==========================================
@@ -1257,6 +1357,9 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
                 # 如果段落尚未确认，显示确认按钮
                 if i not in st.session_state['confirmed_paragraphs']:
                     if st.button("✅ 确认内容", key=f"confirm_p_{i}"):
+                        logger.info(f"=== 点击确认段落 {i} ===")
+                        logger.info(f"current_draft长度: {len(current_draft) if current_draft else 0}")
+
                         # 调试输出
                         if DEBUG_MODE:
                             st.write(f"调试: 点击确认段落 {i}")
@@ -1264,26 +1367,41 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
 
                         # 标记段落为已确认
                         st.session_state['confirmed_paragraphs'].add(i)
+                        logger.info(f"段落 {i} 添加到 confirmed_paragraphs")
 
                         # 保存当前段落内容到confirmed_contents
                         # 优先从文本框session state获取最新内容
                         textarea_key = f"draft_p_{i}"
                         latest_content = st.session_state.get(textarea_key, current_draft)
                         st.session_state['confirmed_contents'][i] = latest_content
+                        logger.info(f"段落 {i} 保存到 confirmed_contents, 长度: {len(latest_content) if latest_content else 0}")
+                        logger.debug(f"段落 {i} 内容前100字符: {latest_content[:100] if latest_content else '空'}")
 
                         if DEBUG_MODE:
                             st.write(f"调试: confirmed_contents[{i}] = {st.session_state['confirmed_contents'].get(i, 'NOT FOUND')}")
 
                         # 重建最终预览文本
+                        logger.info("开始调用 rebuild_final_preview()")
                         rebuilt_text = rebuild_final_preview()
-                        st.session_state['final_preview_text'] = rebuilt_text
-                        if DEBUG_MODE:
-                            st.write(f"调试: rebuild结果长度 = {len(rebuilt_text)}")
+                        logger.info(f"rebuild_final_preview() 返回长度: {len(rebuilt_text)}")
 
-                        # 清空清理版本，因为内容已更新
-                        st.session_state['final_preview_text_cleaned'] = ''
+                        if rebuilt_text and rebuilt_text.strip():
+                            st.session_state['final_preview_text'] = rebuilt_text
+                            logger.info(f"final_preview_text 设置为重建结果，长度: {len(rebuilt_text)}")
 
-                        st.success("内容已添加到最终预览")
+                            if DEBUG_MODE:
+                                st.write(f"调试: rebuild结果长度 = {len(rebuilt_text)}")
+
+                            # 清空清理版本，因为内容已更新
+                            st.session_state['final_preview_text_cleaned'] = ''
+                            logger.info("已清空 final_preview_text_cleaned")
+
+                            logger.info(f"=== 段落 {i} 确认完成 ===")
+                            st.success("内容已添加到最终预览")
+                        else:
+                            logger.error(f"重建的文本为空！段落 {i} 确认失败")
+                            st.error(f"无法重建最终预览文本。请检查段落 {i+1} 是否有内容。")
+
                         st.rerun()
                 else:
                     # 如果段落已确认，显示已确认状态
@@ -1408,19 +1526,40 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
     # 优先显示清理后的版本，如果存在的话
     display_text = st.session_state.get('final_preview_text_cleaned') or st.session_state['final_preview_text']
 
+    logger.info(f"=== 显示最终预览 ===")
+    logger.info(f"final_preview_text长度: {len(st.session_state['final_preview_text'])}")
+    logger.info(f"final_preview_text_cleaned长度: {len(st.session_state.get('final_preview_text_cleaned', ''))}")
+    logger.info(f"显示文本长度: {len(display_text)}")
+    logger.debug(f"final_preview_text前100字符: {st.session_state['final_preview_text'][:100] if st.session_state['final_preview_text'] else '空'}")
+
     # 如果文本为空，显示提示信息
     if not display_text.strip() and not st.session_state['final_preview_text'].strip():
+        logger.warning("最终预览文本为空")
         st.info("请先在上方段落中点击'✅ 确认内容'按钮，将段落添加到最终预览")
+
+    def update_final_preview():
+        """更新最终预览文本的回调函数"""
+        new_value = st.session_state.get('final_preview_text_display', '')
+        logger.info(f"=== 文本区域on_change回调 ===")
+        logger.info(f"新值长度: {len(new_value)}")
+        logger.info(f"原final_preview_text长度: {len(st.session_state.get('final_preview_text', ''))}")
+
+        if new_value:
+            st.session_state['final_preview_text'] = new_value
+            logger.info(f"更新final_preview_text，新长度: {len(new_value)}")
+        else:
+            logger.warning(f"新值为空，不更新final_preview_text")
+
+        # 用户编辑后清除清理版本
+        st.session_state['final_preview_text_cleaned'] = ''
+        logger.info("已清空final_preview_text_cleaned")
 
     st.text_area(
         "最终文本预览",
         value=display_text,
         height=500,
         key="final_preview_text_display",
-        on_change=lambda: st.session_state.update({
-            'final_preview_text': st.session_state.get('final_preview_text_display', ''),
-            'final_preview_text_cleaned': ''  # 用户编辑后清除清理版本
-        })
+        on_change=update_final_preview
     )
 
     # 去除AI词汇按钮
@@ -1436,13 +1575,23 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
 
     if api_key:
         if st.button("🚫 去除AI词汇并生成最终版", type="secondary", use_container_width=True):
+            logger.info(f"=== 点击去除AI词汇按钮 ===")
+            logger.info(f"final_preview_text长度: {len(st.session_state['final_preview_text'])}")
+            logger.info(f"final_preview_text前200字符: {st.session_state['final_preview_text'][:200] if st.session_state['final_preview_text'] else '空'}")
+            logger.info(f"confirmed_paragraphs: {st.session_state['confirmed_paragraphs']}")
+            logger.info(f"confirmed_contents keys: {list(st.session_state['confirmed_contents'].keys())}")
+
             with st.spinner("正在去除AI写作高频词汇..."):
                 try:
                     # 获取当前文本
                     current_text = st.session_state['final_preview_text']
+                    logger.info(f"准备处理的文本长度: {len(current_text) if current_text else 0}")
+
                     if not current_text.strip():
+                        logger.warning("最终预览文本为空")
                         st.warning("最终预览文本为空")
                     else:
+                        logger.info(f"调用AI模型处理文本，长度: {len(current_text)}")
                         # 初始化模型
                         refine_model = genai.GenerativeModel(model_name)
                         res = refine_model.generate_content(
@@ -1451,11 +1600,20 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
                         )
                         # 获取处理后的文本
                         cleaned_text = res.text
+                        logger.info(f"处理后文本长度: {len(cleaned_text)}")
+                        logger.debug(f"处理后文本前200字符: {cleaned_text[:200] if cleaned_text else '空'}")
+
                         # 更新会话状态 - 保存清理版本，保留原始文本
                         st.session_state['final_preview_text_cleaned'] = cleaned_text
+                        logger.info(f"final_preview_text_cleaned 已设置，长度: {len(cleaned_text)}")
+
+                        # 调试：检查 final_preview_text 是否被意外修改
+                        logger.info(f"处理后 final_preview_text长度: {len(st.session_state['final_preview_text'])}")
+
                         st.success("AI词汇已去除，清理版本已生成！")
                         st.rerun()
                 except Exception as e:
+                    logger.error(f"去除AI词汇失败: {e}")
                     st.error(f"处理失败: {e}")
     else:
         st.warning("请先配置API Key以使用此功能")
