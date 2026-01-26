@@ -468,6 +468,62 @@ with st.sidebar:
     if st.session_state['sections_data']:
         st.success(f"当前已生成 {len(st.session_state['sections_data'])} 个段落")
 
+    st.divider()
+    st.markdown("### 诊断信息")
+
+    # 显示最终预览状态
+    if st.session_state['final_preview_text']:
+        st.info(f"最终预览文本长度: {len(st.session_state['final_preview_text'])} 字符")
+        if st.session_state.get('final_preview_text_cleaned'):
+            st.info(f"清理版本长度: {len(st.session_state['final_preview_text_cleaned'])} 字符")
+    else:
+        st.warning("最终预览文本为空")
+
+    # 显示已确认段落状态
+    confirmed_count = len(st.session_state['confirmed_paragraphs'])
+    total_paragraphs = len(st.session_state['sections_data'])
+    if total_paragraphs > 0:
+        st.info(f"已确认段落: {confirmed_count}/{total_paragraphs}")
+        if confirmed_count > 0:
+            confirmed_indices = sorted(list(st.session_state['confirmed_paragraphs']))
+            st.info(f"已确认段落索引: {confirmed_indices}")
+
+    # 检查confirmed_contents
+    if st.session_state['confirmed_contents']:
+        st.info(f"confirmed_contents中有 {len(st.session_state['confirmed_contents'])} 个段落")
+        for idx, content in st.session_state['confirmed_contents'].items():
+            content_len = len(content) if content else 0
+            st.info(f"段落 {idx}: {content_len} 字符")
+    else:
+        st.warning("confirmed_contents为空")
+
+    # 诊断按钮
+    st.divider()
+    if st.button("📋 输出详细诊断日志", key="diagnostic_btn"):
+        logger.info(f"=== 详细诊断日志 ===")
+        logger.info(f"final_preview_text长度: {len(st.session_state['final_preview_text'])}")
+        logger.info(f"final_preview_text_cleaned长度: {len(st.session_state.get('final_preview_text_cleaned', ''))}")
+        logger.info(f"final_preview_text_display session state存在: {'final_preview_text_display' in st.session_state}")
+        logger.info(f"sections_data长度: {len(st.session_state['sections_data'])}")
+        logger.info(f"confirmed_paragraphs: {st.session_state['confirmed_paragraphs']}")
+        logger.info(f"confirmed_contents keys: {list(st.session_state['confirmed_contents'].keys())}")
+
+        # 检查每个confirmed_contents的内容
+        for idx, content in st.session_state['confirmed_contents'].items():
+            logger.info(f"confirmed_contents[{idx}]长度: {len(content) if content else 0}")
+            if content and len(content) < 500:
+                logger.info(f"confirmed_contents[{idx}]内容前200字符: {content[:200]}")
+
+        # 检查final_preview_text_display
+        if 'final_preview_text_display' in st.session_state:
+            display_val = st.session_state['final_preview_text_display']
+            logger.info(f"final_preview_text_display长度: {len(display_val) if display_val else 0}")
+            if display_val and len(display_val) < 500:
+                logger.info(f"final_preview_text_display前200字符: {display_val[:200]}")
+
+        logger.info(f"=== 诊断日志结束 ===")
+        st.success("详细诊断日志已输出到日志文件")
+
 # 设置默认使用的模型
 model_name = "gemini-2.5-pro"
 
