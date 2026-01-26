@@ -141,7 +141,8 @@ def apply_custom_css():
         font-size: 0.9rem !important;
         box-shadow: 0 1px 2px rgba(54, 102, 250, 0.2) !important;
         transition: all 0.2s ease !important;
-        min-width: 100px;
+        min-width: 100px !important;
+        min-height: 38px !important;
         height: auto;
         line-height: 1.4;
     }
@@ -322,6 +323,39 @@ def apply_custom_css():
     .top-align-container .stTextArea {
         margin-top: 0 !important;
     }
+
+    /* 流式显示光标效果 */
+    .streaming-cursor::after {
+        content: "▌";
+        animation: blink 1s infinite;
+        color: var(--primary-color);
+    }
+    @keyframes blink {
+        0%, 50% { opacity: 1; }
+        51%, 100% { opacity: 0; }
+    }
+
+    /* 统一按钮样式 */
+    .uniform-button button {
+        min-width: 100px !important;
+        min-height: 38px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    /* 确认内容按钮特殊样式 */
+    button[data-testid*="confirm_p_"] {
+        background-color: white !important;
+        color: #3666FA !important;
+        border: 2px solid #3666FA !important;
+    }
+
+    button[data-testid*="confirm_p_"]:hover {
+        opacity: 0.8;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -333,6 +367,9 @@ st.set_page_config(page_title="个人陈述修改", layout="wide")
 
 # 应用自定义UI样式
 apply_custom_css()
+
+# 调试模式标志
+DEBUG_MODE = True
 
 # 初始化所有会话状态变量，用于在页面重新加载时保持数据
 if 'ps_content' not in st.session_state: st.session_state['ps_content'] = ""  # 原始PS内容
@@ -563,20 +600,66 @@ def contains_annotation(text):
     """检测文本是否包含【】或[]形式的批注标记"""
     return ('【' in text and '】' in text) or ('[' in text and ']' in text)
 
+# 从AI修改思路中提取段落主题
+def extract_paragraph_topic(logic_text):
+    """从AI修改思路中提取段落主题"""
+    if not logic_text:
+        return "未识别"
+
+    # 尝试从常见模式中提取
+    patterns = [
+        r"本段功能识别：\[(.+?)\]",
+        r"功能：(.+?)(?:\n|$)",
+        r"主题：(.+?)(?:\n|$)"
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, logic_text)
+        if match:
+            return match.group(1).strip()
+
+    # 根据关键词推断
+    keywords = {
+        "动机": ["动机", "兴趣", "inspiration", "motivation"],
+        "学术背景": ["学术", "学习", "课程", "academic"],
+        "研究经历": ["研究", "项目", "实验", "research"],
+        "工作经历": ["工作", "实习", "职业", "work"],
+        "职业规划": ["规划", "目标", "未来", "career"],
+        "择校理由": ["学校", "课程", "专业", "why school"]
+    }
+
+    for topic, key_list in keywords.items():
+        if any(key in logic_text.lower() for key in key_list):
+            return topic
+
+    return "段落内容"
+
 # 重建最终预览文本
 def rebuild_final_preview():
     """按段落顺序重建最终预览文本"""
     if not st.session_state['sections_data']:
+        if DEBUG_MODE:
+            st.warning("没有段落数据")  # 调试信息
         return ""
 
-    confirmed_indices = sorted(st.session_state['confirmed_paragraphs'])
+    # 确保confirmed_paragraphs是list类型
+    if isinstance(st.session_state['confirmed_paragraphs'], set):
+        confirmed_indices = sorted(list(st.session_state['confirmed_paragraphs']))
+    else:
+        confirmed_indices = sorted(st.session_state['confirmed_paragraphs'])
+
     if not confirmed_indices:
+        if DEBUG_MODE:
+            st.warning(f"已确认段落为空: {st.session_state['confirmed_paragraphs']}")  # 调试信息
         return ""
 
     paragraphs = []
     for idx in confirmed_indices:
         if idx < len(st.session_state['sections_data']):
-            # 首先从confirmed_contents获取已保存的内容
+            # 调试输出
+            if DEBUG_MODE:
+                st.info(f"处理段落 {idx}, confirmed_contents中有: {idx in st.session_state['confirmed_contents']}")
+
             if idx in st.session_state['confirmed_contents']:
                 current_text = st.session_state['confirmed_contents'][idx]
             else:
@@ -590,7 +673,10 @@ def rebuild_final_preview():
                     current_text = st.session_state['refine_results'].get(draft_key, st.session_state['sections_data'][idx]['draft'])
             paragraphs.append(current_text)
 
-    return "\n\n".join(paragraphs)
+    result = "\n\n".join(paragraphs)
+    if DEBUG_MODE:
+        st.info(f"重建结果长度: {len(result)}")  # 调试信息
+    return result
 
 # ==========================================
 # Prompt构建函数
@@ -935,16 +1021,34 @@ if generate_btn:
                     safety_settings=safety_settings 
                 )
                 
-                # 实时显示生成的内容
+                # 实时显示生成的内容 - 批处理优化版本
                 full_response = ""
+                BUFFER_SIZE = 200  # 字符阈值
+                UPDATE_INTERVAL = 0.05  # 50ms
+                buffer = ""
+                last_update = time.perf_counter()
+
                 for chunk in response_stream:
                     try:
                         if chunk.text:
-                            clean_chunk = clean_asterisks(chunk.text)
-                            full_response += clean_chunk
-                            output_placeholder.markdown(full_response + "▌")
+                            buffer += chunk.text  # 暂不清理
+                            current_time = time.perf_counter()
+
+                            # 达到阈值或时间间隔时更新
+                            if len(buffer) >= BUFFER_SIZE or (current_time - last_update) >= UPDATE_INTERVAL:
+                                clean_buffer = clean_asterisks(buffer)
+                                full_response += clean_buffer
+                                output_placeholder.markdown(full_response + '<span class="streaming-cursor"></span>', unsafe_allow_html=True)
+                                buffer = ""
+                                last_update = current_time
                     except Exception:
                         pass
+
+                # 最后处理剩余缓冲
+                if buffer:
+                    clean_buffer = clean_asterisks(buffer)
+                    full_response += clean_buffer
+                    output_placeholder.markdown(full_response + '<span class="streaming-cursor"></span>', unsafe_allow_html=True)
                 
                 # 清理和过滤最终响应
                 full_response = clean_asterisks(full_response)
@@ -1007,10 +1111,11 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
     # 遍历所有段落，为每个段落创建编辑界面
     for i, section_data in enumerate(st.session_state['sections_data']):
         # 在段落标题旁显示状态
+        topic = extract_paragraph_topic(section_data['logic'])
         if i in st.session_state['confirmed_paragraphs']:
-            st.markdown(f"### Paragraph {i+1} ✅")
+            st.markdown(f"### {topic} ✅")
         else:
-            st.markdown(f"### Paragraph {i+1}")
+            st.markdown(f"### {topic}")
         
         # 布局：左侧编辑区，右侧逻辑说明
         col_draft, col_logic = st.columns([0.65, 0.35], gap="large")
@@ -1152,6 +1257,11 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
                 # 如果段落尚未确认，显示确认按钮
                 if i not in st.session_state['confirmed_paragraphs']:
                     if st.button("✅ 确认内容", key=f"confirm_p_{i}"):
+                        # 调试输出
+                        if DEBUG_MODE:
+                            st.write(f"调试: 点击确认段落 {i}")
+                            st.write(f"调试: confirmed_paragraphs = {st.session_state['confirmed_paragraphs']}")
+
                         # 标记段落为已确认
                         st.session_state['confirmed_paragraphs'].add(i)
 
@@ -1161,8 +1271,14 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
                         latest_content = st.session_state.get(textarea_key, current_draft)
                         st.session_state['confirmed_contents'][i] = latest_content
 
+                        if DEBUG_MODE:
+                            st.write(f"调试: confirmed_contents[{i}] = {st.session_state['confirmed_contents'].get(i, 'NOT FOUND')}")
+
                         # 重建最终预览文本
-                        st.session_state['final_preview_text'] = rebuild_final_preview()
+                        rebuilt_text = rebuild_final_preview()
+                        st.session_state['final_preview_text'] = rebuilt_text
+                        if DEBUG_MODE:
+                            st.write(f"调试: rebuild结果长度 = {len(rebuilt_text)}")
 
                         # 清空清理版本，因为内容已更新
                         st.session_state['final_preview_text_cleaned'] = ''
@@ -1311,6 +1427,12 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
     st.divider()
     st.markdown("#### 去除AI写作高频词汇")
     st.caption("点击下方按钮去除文本中的AI写作高频词汇和句式（黑名单）。")
+
+    # 在去除AI词汇按钮前添加调试代码
+    if DEBUG_MODE:
+        st.write(f"调试: final_preview_text长度 = {len(st.session_state['final_preview_text'])}")
+        st.write(f"调试: confirmed_paragraphs = {st.session_state['confirmed_paragraphs']}")
+        st.write(f"调试: confirmed_contents keys = {list(st.session_state['confirmed_contents'].keys())}")
 
     if api_key:
         if st.button("🚫 去除AI词汇并生成最终版", type="secondary", use_container_width=True):
