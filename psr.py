@@ -1529,8 +1529,14 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
         st.success(f"已确认全部 {total_paragraphs} 段落")
     
     # 显示最终预览文本
-    # 优先显示清理后的版本，如果存在的话
-    display_text = st.session_state.get('final_preview_text_cleaned') or st.session_state['final_preview_text']
+    # 优先显示清理后的版本，如果存在且不为空的话
+    cleaned_text = st.session_state.get('final_preview_text_cleaned', '')
+    if cleaned_text and cleaned_text.strip():  # 检查清理版本是否存在且非空
+        display_text = cleaned_text
+        logger.info(f"使用final_preview_text_cleaned作为显示文本")
+    else:
+        display_text = st.session_state['final_preview_text']
+        logger.info(f"使用final_preview_text作为显示文本")
 
     logger.info(f"=== 显示最终预览 ===")
     logger.info(f"final_preview_text长度: {len(st.session_state['final_preview_text'])}")
@@ -1573,6 +1579,14 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
         if new_value:
             logger.debug(f"new_value前100字符: {new_value[:100]}")
 
+        # 获取当前的清理版本
+        current_cleaned = st.session_state.get('final_preview_text_cleaned', '')
+        logger.info(f"当前final_preview_text_cleaned长度: {len(current_cleaned)}")
+
+        # 检查新值是否与清理版本相同（可能是AI处理后的自动更新）
+        is_same_as_cleaned = new_value == current_cleaned
+        logger.info(f"新值与清理版本相同: {is_same_as_cleaned}")
+
         original_length = len(st.session_state.get('final_preview_text', ''))
         logger.info(f"原final_preview_text长度: {original_length}")
 
@@ -1582,12 +1596,25 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
         else:
             logger.warning(f"new_value为空或None，不更新final_preview_text")
 
-        # 用户编辑后清除清理版本
-        st.session_state['final_preview_text_cleaned'] = ''
-        logger.info("已清空final_preview_text_cleaned")
+        # 只有在新值与清理版本不同时才清除清理版本（表示用户手动编辑）
+        if not is_same_as_cleaned and current_cleaned:
+            st.session_state['final_preview_text_cleaned'] = ''
+            logger.info("用户手动编辑文本，已清空final_preview_text_cleaned")
+        else:
+            logger.info("文本未变化或与清理版本相同，保留final_preview_text_cleaned")
 
     # 确保display_text是字符串
     text_area_value = str(display_text) if display_text is not None else ""
+
+    logger.info(f"=== 文本区域渲染信息 ===")
+    logger.info(f"display_text类型: {type(display_text)}")
+    logger.info(f"display_text长度: {len(display_text) if display_text else 0}")
+    logger.info(f"text_area_value类型: {type(text_area_value)}")
+    logger.info(f"text_area_value长度: {len(text_area_value)}")
+    logger.debug(f"text_area_value前200字符: {text_area_value[:200] if text_area_value else '空'}")
+    logger.info(f"final_preview_text_cleaned存在: {'final_preview_text_cleaned' in st.session_state}")
+    logger.info(f"final_preview_text_cleaned长度: {len(st.session_state.get('final_preview_text_cleaned', ''))}")
+    logger.info(f"final_preview_text_display session state存在: {'final_preview_text_display' in st.session_state}")
 
     st.text_area(
         "最终文本预览",
@@ -1621,6 +1648,12 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
             logger.info(f"=== 点击去除AI词汇按钮 ===")
             logger.info(f"final_preview_text长度: {len(st.session_state['final_preview_text'])}")
             logger.info(f"final_preview_text前200字符: {st.session_state['final_preview_text'][:200] if st.session_state['final_preview_text'] else '空'}")
+            logger.info(f"final_preview_text_cleaned长度: {len(st.session_state.get('final_preview_text_cleaned', ''))}")
+            logger.info(f"final_preview_text_cleaned前200字符: {st.session_state.get('final_preview_text_cleaned', '')[:200] if st.session_state.get('final_preview_text_cleaned') else '空'}")
+            logger.info(f"final_preview_text_display session state存在: {'final_preview_text_display' in st.session_state}")
+            if 'final_preview_text_display' in st.session_state:
+                logger.info(f"final_preview_text_display长度: {len(st.session_state['final_preview_text_display'])}")
+                logger.info(f"final_preview_text_display前200字符: {st.session_state['final_preview_text_display'][:200] if st.session_state['final_preview_text_display'] else '空'}")
             logger.info(f"confirmed_paragraphs: {st.session_state['confirmed_paragraphs']}")
             logger.info(f"confirmed_contents keys: {list(st.session_state['confirmed_contents'].keys())}")
 
@@ -1628,13 +1661,16 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
                 try:
                     # 获取当前文本 - 优先使用文本区域的当前内容
                     current_text = st.session_state.get('final_preview_text_display', st.session_state['final_preview_text'])
+                    logger.info(f"准备处理的文本来源: {'final_preview_text_display' if 'final_preview_text_display' in st.session_state else 'final_preview_text'}")
                     logger.info(f"准备处理的文本长度: {len(current_text) if current_text else 0}")
+                    logger.info(f"准备处理的文本前200字符: {current_text[:200] if current_text else '空'}")
 
                     if not current_text.strip():
                         logger.warning("最终预览文本为空")
                         st.warning("最终预览文本为空")
                     else:
                         logger.info(f"调用AI模型处理文本，长度: {len(current_text)}")
+                        logger.info(f"构建prompt并发送到AI...")
                         # 初始化模型
                         refine_model = genai.GenerativeModel(model_name)
                         res = refine_model.generate_content(
@@ -1643,12 +1679,14 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
                         )
                         # 获取处理后的文本
                         cleaned_text = res.text
-                        logger.info(f"处理后文本长度: {len(cleaned_text)}")
-                        logger.debug(f"处理后文本前200字符: {cleaned_text[:200] if cleaned_text else '空'}")
+                        logger.info(f"AI处理完成，返回文本长度: {len(cleaned_text)}")
+                        logger.debug(f"处理后文本前500字符: {cleaned_text[:500] if cleaned_text else '空'}")
+                        logger.info(f"原始文本长度: {len(current_text)}，处理后长度: {len(cleaned_text)}")
 
                         # 更新会话状态 - 保存清理版本，保留原始文本
                         st.session_state['final_preview_text_cleaned'] = cleaned_text
                         logger.info(f"final_preview_text_cleaned 已设置，长度: {len(cleaned_text)}")
+                        logger.info(f"session state中 final_preview_text_cleaned 现在: {len(st.session_state.get('final_preview_text_cleaned', ''))} 字符")
 
                         # 清除文本区域的session state，确保下次渲染使用新值
                         if 'final_preview_text_display' in st.session_state:
@@ -1667,10 +1705,20 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
                         # 调试：检查 final_preview_text 是否被意外修改
                         logger.info(f"处理后 final_preview_text长度: {len(st.session_state['final_preview_text'])}")
 
+                        # 立即记录最终显示文本的状态
+                        cleaned_text_check = st.session_state.get('final_preview_text_cleaned', '')
+                        if cleaned_text_check and cleaned_text_check.strip():
+                            display_text_should_be = cleaned_text_check
+                            logger.info(f"处理完成后，display_text应该显示final_preview_text_cleaned，长度: {len(display_text_should_be)}")
+                        else:
+                            display_text_should_be = st.session_state['final_preview_text']
+                            logger.info(f"处理完成后，display_text应该显示final_preview_text，长度: {len(display_text_should_be)}")
+
                         st.success("AI词汇已去除，清理版本已生成并显示在文本区域中！")
                         st.rerun()
                 except Exception as e:
                     logger.error(f"去除AI词汇失败: {e}")
+                    logger.exception(f"完整异常信息:")
                     st.error(f"处理失败: {e}")
     else:
         st.warning("请先配置API Key以使用此功能")
