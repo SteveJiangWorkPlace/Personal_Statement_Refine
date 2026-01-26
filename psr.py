@@ -233,7 +233,7 @@ def apply_custom_css():
         line-height: 1.5 !important;
         color: #333333 !important;
         background-color: #ffffff !important;
-        height: 300px !important;  /* 统一高度 */
+        min-height: 300px !important;  /* 最小高度，允许扩展 */
         width: 100% !important;
         box-sizing: border-box !important;
     }
@@ -1531,36 +1531,87 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
     logger.info(f"final_preview_text_cleaned长度: {len(st.session_state.get('final_preview_text_cleaned', ''))}")
     logger.info(f"显示文本长度: {len(display_text)}")
     logger.debug(f"final_preview_text前100字符: {st.session_state['final_preview_text'][:100] if st.session_state['final_preview_text'] else '空'}")
+    logger.debug(f"display_text前100字符: {display_text[:100] if display_text else '空'}")
 
     # 如果文本为空，显示提示信息
     if not display_text.strip() and not st.session_state['final_preview_text'].strip():
         logger.warning("最终预览文本为空")
         st.info("请先在上方段落中点击'✅ 确认内容'按钮，将段落添加到最终预览")
 
+    # 调试：直接显示文本内容，检查是否渲染问题
+    if DEBUG_MODE:
+        st.write(f"调试: display_text类型: {type(display_text)}")
+        st.write(f"调试: display_text长度: {len(display_text) if display_text else 0}")
+        # 检查字符串中是否有控制字符
+        if display_text:
+            import string
+            printable = set(string.printable)
+            non_printable_count = sum(1 for c in display_text[:500] if c not in printable)
+            if non_printable_count > 0:
+                st.write(f"调试: 前500字符中有 {non_printable_count} 个不可打印字符")
+                # 显示非打印字符的位置
+                for i, c in enumerate(display_text[:500]):
+                    if c not in printable:
+                        st.write(f"调试: 位置 {i} 的字符: repr={repr(c)}, ord={ord(c)}")
+            # 显示前200字符
+            st.code(display_text[:200] if display_text else '空', language='text')
+            # 显示repr，查看隐藏字符
+            st.write(f"调试: display_text前200字符的repr: {repr(display_text[:200])}")
+
     def update_final_preview():
         """更新最终预览文本的回调函数"""
         new_value = st.session_state.get('final_preview_text_display', '')
-        logger.info(f"=== 文本区域on_change回调 ===")
-        logger.info(f"新值长度: {len(new_value)}")
-        logger.info(f"原final_preview_text长度: {len(st.session_state.get('final_preview_text', ''))}")
+        logger.info(f"=== 文本区域on_change回调被调用 ===")
+        logger.info(f"new_value长度: {len(new_value)}")
+        logger.info(f"new_value类型: {type(new_value)}")
+        if new_value:
+            logger.debug(f"new_value前100字符: {new_value[:100]}")
+
+        original_length = len(st.session_state.get('final_preview_text', ''))
+        logger.info(f"原final_preview_text长度: {original_length}")
 
         if new_value:
             st.session_state['final_preview_text'] = new_value
             logger.info(f"更新final_preview_text，新长度: {len(new_value)}")
         else:
-            logger.warning(f"新值为空，不更新final_preview_text")
+            logger.warning(f"new_value为空或None，不更新final_preview_text")
 
         # 用户编辑后清除清理版本
         st.session_state['final_preview_text_cleaned'] = ''
         logger.info("已清空final_preview_text_cleaned")
 
+    # 确保display_text是字符串
+    text_area_value = str(display_text) if display_text is not None else ""
+
+    # 确保文本区域的key有正确的初始值
+    text_area_key = "final_preview_text_display"
+    current_text_area_value = st.session_state.get(text_area_key, '')
+    logger.info(f"文本区域key '{text_area_key}' 当前值长度: {len(current_text_area_value)}")
+    logger.info(f"text_area_value长度: {len(text_area_value)}")
+
+    if not current_text_area_value and text_area_value:
+        logger.info(f"文本区域key '{text_area_key}' 为空，使用text_area_value初始化")
+        st.session_state[text_area_key] = text_area_value
+    elif current_text_area_value and text_area_value and current_text_area_value != text_area_value:
+        logger.info(f"文本区域key '{text_area_key}' 已有值({len(current_text_area_value)}字符)，但text_area_value不同({len(text_area_value)}字符)")
+        # 可以选择同步，但可能覆盖用户编辑
+        # st.session_state[text_area_key] = text_area_value
+
     st.text_area(
         "最终文本预览",
-        value=display_text,
+        value=text_area_value,
         height=500,
         key="final_preview_text_display",
         on_change=update_final_preview
     )
+
+    # 调试：检查文本区域渲染后的状态
+    if DEBUG_MODE:
+        st.write(f"调试: 文本区域渲染后，final_preview_text_display session state长度: {len(st.session_state.get('final_preview_text_display', ''))}")
+        st.write(f"调试: 文本区域渲染后，final_preview_text长度: {len(st.session_state.get('final_preview_text', ''))}")
+        # 尝试用markdown显示一小段内容，检查是否渲染问题
+        if display_text and len(display_text) > 50:
+            st.markdown(f"**直接Markdown显示前100字符:** {display_text[:100]}...")
 
     # 去除AI词汇按钮
     st.divider()
