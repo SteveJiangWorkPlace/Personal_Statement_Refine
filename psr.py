@@ -976,12 +976,12 @@ def build_refine_prompt(text_with_instructions, has_chinese):
     Output ONLY the refined text (no explanations).
     """
 
-# 修改翻译prompt，明确指示将中文翻译为英文并高亮显示，确保英文精修阶段输出纯英文
+# 修改翻译prompt，明确指示将中文翻译为英文，确保输出纯英文且无Markdown符号
 def build_translate_prompt(hybrid_text, style="US"):
-    """构建用于将中英混合文本翻译为纯英文的提示词，支持美式和英式拼写"""
+    """构建用于将中英混合文本翻译为纯英文的提示词，支持美式和英式拼写，遵循专业写作规范"""
     # 根据指定风格设置拼写规则
     spelling_rule = "American Spelling (Color, Honor, Analyze)" if style == "US" else "British Spelling (Colour, Honour, Analyse)"
-    
+
     return f"""
     You are an expert Admissions Essay Translator.
     Task: Translate the hybrid Chinese-English paragraph into professional English.
@@ -989,41 +989,58 @@ def build_translate_prompt(hybrid_text, style="US"):
     Input (Hybrid Draft):
     {hybrid_text}
     CRITICAL RULES (MUST FOLLOW)
-    1. **HIGHLIGHTING (Most Important)**: 
-       - You MUST wrap ALL **newly translated** parts (from Chinese to English) in double asterisks (e.g., **this is translated from Chinese**).
-       - Do NOT bold the original English text that was kept unchanged.
+    1. **TRANSLATION EXECUTION**:
+       - **MUST translate ALL Chinese text** into professional English following the rules below.
+       - Any text inside brackets like `(...)` or `【...】` must be translated to English.
+       - Merge translations smoothly with the existing English text.
+       - **DO NOT use any Markdown formatting symbols** (no asterisks, bold, etc.)
+       - Output clean text without any formatting marks.
+       - Output ONLY the final English paragraph.
     2. **BANNED VOCABULARY (DO NOT USE)**:
        - master / mastery
        - my goal is to
        - permit
        - deep comprehension
-       - focus
        - look forward to
        - address
        - command
        - drawn to / draw
-       - demonstrate (use sparingly)
        - privilege
        - testament
        - commitment
-    3. **WRITING STYLE & GRAMMAR**:
-       - **No Adverbs**: Avoid adverbs (e.g., significantly, truly, very).
-       - **Professional Tone**: Use precise, professional terminology.
-       - **Punctuation**: Use semicolons (;) where appropriate.
-       - **Paragraph Unity**: Do NOT split the paragraph. Keep it as one block.
-    4. **TRANSLATION EXECUTION**:
-       - **MUST translate ALL Chinese text** into professional English following the rules above.
-       - Any text inside brackets like `(...)` or `【...】` must be translated to English and highlighted with **.
-       - Merge translations smoothly with the existing English text.
-       - Output ONLY the final English paragraph.
+       - tenure
+       - thereby / thereby doing
+       - cultivate
+       - Building on this / Building on this foundation
+       - intend to
+       - demonstrate (use sparingly, avoid frequent appearance)
+    3. **PROHIBITED STRUCTURES (ABSOLUTELY FORBIDDEN)**:
+       - **Adverbs**: Do not use adverbs (including adverbs as logical connectors).
+       - **-ing forms as nouns**: Avoid using -ing forms as nouns (gerunds as subjects/objects).
+       - **Adverb + verb/adjective structures**: Avoid combinations like "significantly improve" or "deeply understand".
+       - **Main clause + , + -ing participial phrases**: Avoid structures like "I completed the project, demonstrating my skills".
+    4. **SENTENCE STRUCTURE REQUIREMENTS**:
+       - **Use subordinate clauses** to enhance logical connections. For example: "...which in turn leads to..." instead of "...this [verb]..."
+       - **Use semicolons (;)** to connect complete but conceptually related sentences, not periods.
+       - Ensure logical coherence and smooth flow.
+    5. **PUNCTUATION STANDARDS**:
+       - **Quotation marks**: Do NOT place commas or periods inside quotation marks. Place punctuation OUTSIDE quotation marks.
+       - Example: Use "example", not "example,".
+    6. **PROFESSIONAL WRITING STANDARDS**:
+       - Use precise, professional terminology.
+       - Avoid colloquial expressions.
+       - Maintain formal academic tone appropriate for personal statements.
+    7. **ORIGINAL ENGLISH PRESERVATION**:
+       - Keep original English parts unchanged.
+       - Apply all rules above only to newly translated parts (from Chinese to English).
     """
 
-# 修改英文精修提示词，确保输出纯英文
+# 修改英文精修提示词，确保输出纯英文且无Markdown符号
 def build_english_refine_prompt(text_with_instructions):
-    """构建用于英文精修阶段的提示词，确保输出纯英文"""
+    """构建用于英文精修阶段的提示词，确保输出纯英文，遵循专业写作规范"""
     return f"""
     You are an expert academic editor specializing in personal statements for graduate school applications.
-    
+
     **Your Task:**
     1. Read the English text carefully.
     2. Identify the instructions inside `【】` or `[]` (e.g., "[make this more professional]", "【improve this sentence】").
@@ -1031,20 +1048,58 @@ def build_english_refine_prompt(text_with_instructions):
     4. **Remove** the instruction markers and the instruction text itself from the final output.
     5. Keep the rest of the text that was not targeted by instructions unchanged.
     6. Ensure the final output is smooth, coherent, and maintains a professional academic tone.
-    
-    **CRITICAL RULES:**
-    - Output MUST be in ENGLISH only.
-    - Maintain the original meaning and intent of the text.
-    - Highlight all modified parts with double asterisks (e.g., **this text was modified**).
-    - Follow academic writing best practices.
-    - Avoid banned vocabulary: master/mastery, my goal is to, permit, deep comprehension, focus, look forward to, address, command, drawn to/draw, demonstrate (use sparingly), privilege, testament, commitment.
-    - Avoid adverbs (e.g., significantly, truly, very).
-    
+
+    **CRITICAL RULES (MUST FOLLOW):**
+    1. **OUTPUT FORMAT**:
+       - Output MUST be in ENGLISH only.
+       - **DO NOT use any Markdown formatting symbols** (no asterisks, bold, etc.)
+       - Output clean text without any formatting marks.
+
+    2. **BANNED VOCABULARY (DO NOT USE)**:
+       - master / mastery
+       - my goal is to
+       - permit
+       - deep comprehension
+       - look forward to
+       - address
+       - command
+       - drawn to / draw
+       - privilege
+       - testament
+       - commitment
+       - tenure
+       - thereby / thereby doing
+       - cultivate
+       - Building on this / Building on this foundation
+       - intend to
+       - demonstrate (use sparingly, avoid frequent appearance)
+
+    3. **PROHIBITED STRUCTURES (ABSOLUTELY FORBIDDEN)**:
+       - **Adverbs**: Do not use adverbs (including adverbs as logical connectors).
+       - **-ing forms as nouns**: Avoid using -ing forms as nouns (gerunds as subjects/objects).
+       - **Adverb + verb/adjective structures**: Avoid combinations like "significantly improve" or "deeply understand".
+       - **Main clause + , + -ing participial phrases**: Avoid structures like "I completed the project, demonstrating my skills".
+
+    4. **SENTENCE STRUCTURE REQUIREMENTS**:
+       - **Use subordinate clauses** to enhance logical connections. For example: "...which in turn leads to..." instead of "...this [verb]..."
+       - **Use semicolons (;)** to connect complete but conceptually related sentences, not periods.
+       - Ensure logical coherence and smooth flow.
+
+    5. **PUNCTUATION STANDARDS**:
+       - **Quotation marks**: Do NOT place commas or periods inside quotation marks. Place punctuation OUTSIDE quotation marks.
+       - Example: Use "example", not "example,".
+
+    6. **PROFESSIONAL WRITING STANDARDS**:
+       - Use precise, professional terminology.
+       - Avoid colloquial expressions.
+       - Maintain formal academic tone appropriate for personal statements.
+       - Maintain the original meaning and intent of the text.
+
     **Input Text:**
     {text_with_instructions}
-    
+
     **Output:**
-    Output ONLY the refined English text with modified parts highlighted (no explanations).
+    Output ONLY the refined English text (no explanations, no formatting marks).
     """
 
 # 构建去除AI写作高频词汇的提示词
@@ -1076,6 +1131,7 @@ Building on this... / Building on this foundation
 drawn to
 look forward to
 my goal is to
+intend to
 B. 滥用的结构和比喻：
 副词+动词/形容词结构：避免过度使用"显著提升"、"深入理解"这类组合。
 公式化因果：禁用 By doing X, I was able to Y 和 ...thereby doing... 的句式。
@@ -1476,6 +1532,10 @@ if st.session_state['show_sections'] and st.session_state['sections_data']:
                         # 优先从文本框session state获取最新内容
                         textarea_key = f"draft_p_{i}"
                         latest_content = st.session_state.get(textarea_key, current_draft)
+                        # 如果latest_content为空或只有空白字符，使用段落原始内容
+                        if not latest_content or not latest_content.strip():
+                            latest_content = st.session_state['sections_data'][i]['draft']
+                            logger.info(f"段落 {i} latest_content为空，使用原始段落内容，长度: {len(latest_content) if latest_content else 0}")
                         st.session_state['confirmed_contents'][i] = latest_content
                         logger.info(f"段落 {i} 保存到 confirmed_contents, 长度: {len(latest_content) if latest_content else 0}")
                         logger.debug(f"段落 {i} 内容前100字符: {latest_content[:100] if latest_content else '空'}")
